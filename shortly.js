@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var session = require('express-session');
 
 
 var db = require('./app/config');
@@ -23,21 +24,40 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: true }
+}));
+
 app.get('/', 
 function(req, res) {
-  res.render('index');
+  // res.redirect('index');
+  res.redirect('login');
+});
+
+app.get('/login', 
+function(req, res) {
+  res.render('login');
 });
 
 app.get('/create', 
 function(req, res) {
-  res.render('index');
+  // res.render('index');
+  res.redirect('login');
 });
 
 app.get('/links', 
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
-  });
+  console.log("request ==== " + req.sessionID);
+  if (req.sessionID){
+    Links.reset().fetch().then(function(links) {
+      res.send(200, links.models);
+    });
+  }else{
+    res.redirect('login');
+  }
 });
 
 app.post('/links', 
@@ -77,7 +97,20 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
-
+app.post('/signup',
+function(req, res) {
+  console.log("IN SIGNUP", req.body);
+  var user = new User ({
+    username: req.body.username,
+    password: req.body.password
+  });
+  console.log("about to save");
+  user.save().then(function(newUser) {
+    console.log("saving!");
+    Users.add(newUser);
+    res.send(200, null);
+  });
+}); 
 
 
 /************************************************************/
