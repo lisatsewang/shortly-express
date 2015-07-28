@@ -23,24 +23,43 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
-
-app.use(session({
-  secret: 'keyboard cat',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: true }
-}));
-
 app.get('/', 
 function(req, res) {
   // res.redirect('index');
-  res.redirect('login');
+  console.log(req.session);
+  if (!req.session){
+    res.redirect('login');
+  }
 });
 
 app.get('/login', 
 function(req, res) {
   res.render('login');
 });
+
+// check if user is in the database
+// and password matches
+// then start a session
+// redirect to index.html
+// on logout we should end the session
+app.post('/login',
+  function(req,res){
+
+    app.use(session({
+      secret: 'keyboard cat',
+      cookie: { secure: true }
+    }));
+    console.log(req.session);
+    res.redirect('index');
+
+    // app.use('/user/:id', function(req, res, next) {
+    //   console.log('Request URL:', req.originalUrl);
+    //   next();
+    // }, function (req, res, next) {
+    //   console.log('Request Type:', req.method);
+    //   next();
+    // });
+  });
 
 app.get('/create', 
 function(req, res) {
@@ -105,6 +124,11 @@ function(req, res) {
   user.save().then(function(newUser) {
     console.log("saving!");
     Users.add(newUser);
+    app.use(session({
+      secret: 'keyboard cat',
+      cookie: { secure: true }
+    }));
+    res.redirect('index');
     res.send(200, newUser);
   });
 }); 
