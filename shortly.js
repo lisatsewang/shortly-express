@@ -2,8 +2,8 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-var session = require('express-session');
-
+var session = require('client-sessions');
+var bcrypt = require('bcrypt-nodejs');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -23,13 +23,41 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
-app.get('/', 
-function(req, res) {
-  // res.redirect('index');
-  console.log(req.session);
-  if (!req.session){
-    res.redirect('login');
+app.use(session({
+  cookieName: 'session', // cookie name dictates the key name added to the request object
+  secret: 'ldfj29834tjkfvnsxc89234157fASDFGqeyrut07j', // should be a large unguessable string
+  duration: 24 * 60 * 60 * 1000, // how long the session will stay valid in ms
+  activeDuration: 5 * 60 * 1000 // if expiresIn < activeDuration, the session will be extended by activeDuration milliseconds
+}));
+
+
+app.use(function(req,res,next){
+  if (req.session && req.session.user){
+    new User({ username: req.body.username }).fetch().then(function(found) {
+      if (found) {
+        req.user = found.attributes;
+        delete req.user.password;
+        req.session.user = req.user;
+      }
+      next();
+    });
+  }else{
+    next();
   }
+});
+
+var requireLogin = function(req,res,next){
+  if (!req.session.user){
+    res.redirect('/login');
+  }else{
+    next();
+  }
+};
+
+
+app.get('/', requireLogin,
+function(req, res) {
+  res.render('index');
 });
 
 app.get('/login', 
@@ -37,45 +65,40 @@ function(req, res) {
   res.render('login');
 });
 
-// check if user is in the database
-// and password matches
-// then start a session
-// redirect to index.html
-// on logout we should end the session
 app.post('/login',
   function(req,res){
 
-    app.use(session({
-      secret: 'keyboard cat',
-      cookie: { secure: true }
-    }));
-    console.log(req.session);
-    res.redirect('index');
+    new User({ username: req.body.username }).fetch().then(function(found) {
+      if (found) {
+        if (bcrypt.compareSync(req.body.password,found.attributes.password)) {
+          req.session.user = found.attributes;
+          res.redirect('/');
+        } else {
+          res.redirect('login');
+        }
+      } else {
+          res.redirect('login');
+      }
+    });
+  });
 
-    // app.use('/user/:id', function(req, res, next) {
-    //   console.log('Request URL:', req.originalUrl);
-    //   next();
-    // }, function (req, res, next) {
-    //   console.log('Request Type:', req.method);
-    //   next();
-    // });
+app.get('/logout',
+  function(req,res){
+    req.session.reset();
+    res.redirect('login');
   });
 
 app.get('/create', 
 function(req, res) {
   // res.render('index');
-  res.redirect('login');
+  res.redirect('/');
 });
 
-app.get('/links', 
+app.get('/links', requireLogin,
 function(req, res) {
-  if (req.sessionID){
-    Links.reset().fetch().then(function(links) {
+  Links.reset().fetch().then(function(links) {
       res.send(200, links.models);
-    });
-  }else{
-    res.redirect('login');
-  }
+  });
 });
 
 app.post('/links', 
@@ -117,17 +140,14 @@ function(req, res) {
 /************************************************************/
 app.post('/signup',
 function(req, res) {
+  var hash = bcrypt.hashSync(req.body.password);
   var user = new User ({
     username: req.body.username,
-    password: req.body.password
+    password: hash
   });
   user.save().then(function(newUser) {
-    console.log("saving!");
     Users.add(newUser);
-    app.use(session({
-      secret: 'keyboard cat',
-      cookie: { secure: true }
-    }));
+    req.session.user = newUser;
     res.redirect('index');
     res.send(200, newUser);
   });
