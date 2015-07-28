@@ -50,7 +50,6 @@ function(req, res) {
 
 app.get('/links', 
 function(req, res) {
-  console.log("request ==== " + req.sessionID);
   if (req.sessionID){
     Links.reset().fetch().then(function(links) {
       res.send(200, links.models);
@@ -99,19 +98,21 @@ function(req, res) {
 /************************************************************/
 app.post('/signup',
 function(req, res) {
-  console.log("IN SIGNUP", req.body);
   var user = new User ({
     username: req.body.username,
     password: req.body.password
   });
-  console.log("about to save");
   user.save().then(function(newUser) {
     console.log("saving!");
     Users.add(newUser);
-    res.send(200, null);
+    res.send(200, newUser);
   });
 }); 
 
+app.get('/signup',
+function(req,res){
+  res.render('signup');
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
